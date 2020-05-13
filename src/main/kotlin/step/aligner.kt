@@ -28,7 +28,6 @@ fun CmdRunner.align(parameters: AlignmentParameters) {
 
     // create output directory, unpack index
     Files.createDirectories(parameters.outputDirectory.resolve("out"))
-    log.info { parameters.index }
     this.run("tar xvf${if (parameters.index.endsWith("gz")) "z" else ""} ${parameters.index} -C ${parameters.outputDirectory}/out")
 
     // run STAR
@@ -78,8 +77,8 @@ fun CmdRunner.align(parameters: AlignmentParameters) {
         )
     else
         this.run("""
-            convert-sam-for-rsem \\
-                ${parameters.outputDirectory.resolve("starAligned.toTranscriptome.out.bam")} \\
+            convert-sam-for-rsem \
+                ${parameters.outputDirectory.resolve("starAligned.toTranscriptome.out.bam")} \
                 ${parameters.outputDirectory.resolve("${parameters.outputPrefix}_anno")}
         """)
 
