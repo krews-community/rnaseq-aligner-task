@@ -1,104 +1,96 @@
 package step
+
 import mu.KotlinLogging
 import util.*
 import java.nio.file.*
 import util.CmdRunner
+
 private val log = KotlinLogging.logger {}
 
-fun CmdRunner.get_flagstats(input_path:String, output_path:String) {
-    log.info {""}
-    val command = "samtools flagstat ${input_path} >  ${output_path}"
-    this.run(command)
+data class AlignmentParameters (
+    val r1: Path,
+    val index: Path,
+    val outputDirectory: Path,
+    val r2: Path? = null,
+    val libraryId: String? = null,
+    val cores: Int = 1,
+    val ram: Int = 16,
+    val outputPrefix: String = "output"
+)
 
-}
-fun CmdRunner.aligner(repFile1:Path,repFile2:Path?,indexFile:Path,pairedEnd:Boolean,aligner:String?,libraryid:String?,ncpus:Int,ramGB:Int, outDir:Path,outputPrefix:String) {
-    log.info { "Make output Diretory" }
-    Files.createDirectories(outDir)
-   this.run("tar xvf $indexFile -C $outDir")
+fun CmdRunner.isRSEMSorted(bam: Path): Boolean?
+    = this.runCommand("rsem-sam-validator ${bam}")?.trim()?.split("\t")?.get(0)?.endsWith("is valid!")
 
-    var cmd=""
-    if(pairedEnd)
-    {
-        cmd="STAR --genomeDir ${outDir}/out \\\n" +
-                "    --readFilesIn ${repFile1} ${repFile2} \\\n" +
-                "    --readFilesCommand zcat \\\n" +
-                "    --runThreadN ${ncpus} \\\n" +
-                "    --genomeLoad NoSharedMemory \\\n" +
-                "    --outFilterMultimapNmax 20 \\\n" +
-                "    --alignSJoverhangMin 8 \\\n" +
-                "    --alignSJDBoverhangMin 1 \\\n" +
-                "    --outFilterMismatchNmax 999 \\\n" +
-                "    --outFilterMismatchNoverReadLmax 0.04 \\\n" +
-                "    --alignIntronMin 20 \\\n" +
-                "    --alignIntronMax 1000000 \\\n" +
-                "    --alignMatesGapMax 1000000 \\\n" +
-                "    --outSAMheaderCommentFile COfile.txt \\\n" +
-                "    --outSAMheaderHD @HD VN:1.4 SO:coordinate \\\n" +
-                "    --outSAMunmapped Within \\\n" +
-                "    --outFilterType BySJout \\\n" +
-                "    --outSAMattributes NH HI AS NM MD \\\n" +
-                "    --outSAMtype BAM SortedByCoordinate \\\n" +
-                "    --quantMode TranscriptomeSAM \\\n" +
-                "    --sjdbScore 1 \\\n" +
-                "    --limitBAMsortRAM ${ramGB}000000000 \\\n" +
-                " --outFileNamePrefix ${outDir}/star"
-    }else {
-        cmd="STAR --genomeDir ${outDir}/out \\\n" +
-                "    --readFilesIn ${repFile1} \\\n" +
-                "    --readFilesCommand zcat \\\n" +
-                "    --runThreadN ${ncpus} \\\n" +
-                "    --genomeLoad NoSharedMemory \\\n" +
-                "    --outFilterMultimapNmax 20 \\\n" +
-                "    --alignSJoverhangMin 8 \\\n" +
-                "    --alignSJDBoverhangMin 1 \\\n" +
-                "    --outFilterMismatchNmax 999 \\\n" +
-                "    --outFilterMismatchNoverReadLmax 0.04 \\\n" +
-                "    --alignIntronMin 20 \\\n" +
-                "    --alignIntronMax 1000000 \\\n" +
-                "    --alignMatesGapMax 1000000 \\\n" +
-                "    --outSAMheaderCommentFile COfile.txt \\\n" +
-                "    --outSAMheaderHD @HD VN:1.4 SO:coordinate \\\n" +
-                "    --outSAMunmapped Within \\\n" +
-                "    --outFilterType BySJout \\\n" +
-                "    --outSAMattributes NH HI AS NM MD \\\n" +
-                "    --outSAMstrandField intronMotif \\\n" +
-                "    --outSAMtype BAM SortedByCoordinate  \\\n" +
-                "    --quantMode TranscriptomeSAM \\\n" +
-                "    --sjdbScore 1 \\\n" +
-                "    --limitBAMsortRAM ${ramGB}000000000  \\\n" +
-                "    --outFileNamePrefix ${outDir}/star"
-    }
-    this.run(cmd)
+fun CmdRunner.getFlagstats(inputPath: Path, outputPath: Path)
+    = this.run("samtools flagstat $inputPath >  $outputPath")
 
-    //rename
-   val f1 = outDir.resolve("starAligned.sortedByCoord.out.bam")
-    val f2 = outDir.resolve("${outputPrefix}_genome.bam")
-    this.run("mv ${f1} ${f2}")
+fun CmdRunner.align(parameters: AlignmentParameters) {
 
-    //rename
-    val f3 = outDir.resolve("starLog.final.out")
-    val f4 = outDir.resolve("${outputPrefix}_Log.final.out")
-    this.run("mv ${f3} ${f4}")
+    // create output directory, unpack index
+    Files.createDirectories(parameters.outputDirectory.resolve("out"))
+    log.info { parameters.index }
+    this.run("tar xvf${if (parameters.index.endsWith("gz")) "z" else ""} ${parameters.index} -C ${parameters.outputDirectory}/out")
 
-    val rsem_check_cmd = "rsem-sam-validator ${outDir.resolve("starAligned.toTranscriptome.out.bam")}"
+    // run STAR
+    this.run("""
+        STAR \
+            --genomeDir ${parameters.outputDirectory}/out \
+            --readFilesIn ${parameters.r1} ${if (parameters.r2 !== null) parameters.r2 else ""} \
+            --readFilesCommand zcat \
+            --runThreadN ${parameters.cores} \
+            --genomeLoad NoSharedMemory \
+            --outFilterMultimapNmax 20 \
+            --alignSJoverhangMin 8 \
+            --alignSJDBoverhangMin 1 \
+            --outFilterMismatchNmax 999 \
+            --outFilterMismatchNoverReadLmax 0.04 \
+            --alignIntronMin 20 \
+            --alignIntronMax 1000000 \
+            --alignMatesGapMax 1000000 \
+            --outSAMheaderCommentFile COfile.txt \
+            --outSAMheaderHD @HD VN:1.4 SO:coordinate \
+            --outSAMunmapped Within \
+            --outFilterType BySJout \
+            --outSAMattributes NH HI AS NM MD \
+            ${ if (parameters.r2 !== null) "--outSAMstrandField intronMotif" else "" } \
+            --outSAMtype BAM SortedByCoordinate \
+            --quantMode TranscriptomeSAM \
+            --sjdbScore 1 \
+            --limitBAMsortRAM ${parameters.ram}000000000 \
+            --outFileNamePrefix ${parameters.outputDirectory}/star
+    """)
 
-    val o = this.runCommand(rsem_check_cmd)
-    val rsem_valid = o!!.trim().split("\t")[0].endsWith("is valid!")
-    if(rsem_valid)
-    {
-        log.info { "Transcriptome bam is already rsem-sorted." }
-        val f1 = outDir.resolve("starAligned.toTranscriptome.out.bam")
-        val f2 = outDir.resolve("${outputPrefix}_anno.bam")
-        this.run("mv ${f1} ${f2}")
-    }else {
-        log.info {"Transcriptome bam is not rsem-sorted."}
-        val rsem_sort_cmd = "convert-sam-for-rsem ${outDir.resolve("starAligned.toTranscriptome.out.bam")} ${outDir.resolve("${outputPrefix}_anno")}"
-        this.run(rsem_sort_cmd)
-    }
-    val genome_bam_path = outDir.resolve("${outputPrefix}_genome.bam")
-    val anno_bam_path = outDir.resolve("${outputPrefix}_anno.bam")
-    val genome_flagstat_path =  outDir.resolve("${outputPrefix}_genome_flagstat.txt")
-    val anno_flagstat_path =  outDir.resolve("${outputPrefix}_anno_flagstat.txt")
-    get_flagstats(genome_bam_path.toString(), genome_flagstat_path.toString())
-    get_flagstats(anno_bam_path.toString(), anno_flagstat_path.toString())
+    // rename outputs
+    Files.move(
+        parameters.outputDirectory.resolve("starAligned.sortedByCoord.out.bam"),
+        parameters.outputDirectory.resolve("${parameters.outputPrefix}_genome.bam")
+    )
+    Files.move(
+        parameters.outputDirectory.resolve("starLog.final.out"),
+        parameters.outputDirectory.resolve("${parameters.outputPrefix}_Log.final.out")
+    )
+
+    // sort for RSEM if necessary
+    if (this.isRSEMSorted(parameters.outputDirectory.resolve("starAligned.toTranscriptome.out.bam")) === true)
+        Files.move(
+            parameters.outputDirectory.resolve("starAligned.toTranscriptome.out.bam"),
+            parameters.outputDirectory.resolve("${parameters.outputPrefix}_anno.bam")
+        )
+    else
+        this.run("""
+            convert-sam-for-rsem \\
+                ${parameters.outputDirectory.resolve("starAligned.toTranscriptome.out.bam")} \\
+                ${parameters.outputDirectory.resolve("${parameters.outputPrefix}_anno")}
+        """)
+
+    // perform flagstat
+    getFlagstats(
+        parameters.outputDirectory.resolve("${parameters.outputPrefix}_genome.bam"),
+        parameters.outputDirectory.resolve("${parameters.outputPrefix}_genome_flagstat.txt")
+    )
+    getFlagstats(
+        parameters.outputDirectory.resolve("${parameters.outputPrefix}_anno.bam"),
+        parameters.outputDirectory.resolve("${parameters.outputPrefix}_anno_flagstat.txt")
+    )
+    
 }

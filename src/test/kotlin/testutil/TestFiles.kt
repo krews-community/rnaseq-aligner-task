@@ -1,17 +1,14 @@
 package testutil
 import java.nio.file.*
+import kotlin.io.createTempDir
 
 fun getResourcePath(relativePath: String): Path {
-
     val url = TestCmdRunner::class.java.classLoader.getResource(relativePath)
-     return Paths.get(url.toURI())
+    return Paths.get(url.toURI())
 }
 
 // Resource Directories
-val testInputResourcesDir = getResourcePath("test-input-files")
-
+val testInputResourcesDir = getResourcePath("index.tar.gz").resolve("..")
 
 // Test Working Directories
-val testDir = Paths.get("/tmp/rnaseq-test")!!
-val testInputDir = testDir.resolve("input")!!
-val testOutputDir = testDir.resolve("output")!!
+val testDir = createTempDir().toPath()

@@ -1,3 +1,3 @@
 #!/bin/bash
 DOCKER_ORG=genomealmanac
-IMAGE_NAME=rnaseq-align
+IMAGE_NAME=rnaseq-star
