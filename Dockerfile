@@ -44,4 +44,4 @@ RUN ./gradlew clean shadowJar
 
 FROM base
 RUN mkdir /app
-COPY --from=build /src/build/rnaseq-align-*.jar /app/rnaseq.jar
+COPY --from=build /src/build/*.jar /app/star.jar
