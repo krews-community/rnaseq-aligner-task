@@ -11,19 +11,19 @@ fun main(args: Array<String>) = Cli().main(args)
 
 class Cli : CliktCommand() {
 
-    private val r1: Path by option("-r1", help = "path to read 1 FASTQ")
+    private val r1: Path by option("--r1", help = "path to read 1 FASTQ")
         .path(exists = true).required()
-    private val r2: Path? by option("-r2", help = "path to read 2 FASTQ")
+    private val r2: Path? by option("--r2", help = "path to read 2 FASTQ")
         .path()
-    private val index: Path by option("-index", help = "path to index tarball")
+    private val index: Path by option("--index", help = "path to index tarball")
         .path(exists = true).required()
-    private val libraryId: String? by option("-libraryId", help = "library identifier which will be added to bam header").default("")
+    private val libraryId: String? by option("--library-id", help = "library identifier which will be added to bam header").default("")
 
-    private val outputPrefix: String by option("-outputPrefix", help = "output file name prefix; defaults to 'output'").default("output")
-    private val outputDirectory: Path by option("-outputDirectory", help = "path to output Directory")
+    private val outputPrefix: String by option("--output-prefix", help = "output file name prefix; defaults to 'output'").default("output")
+    private val outputDirectory: Path by option("--output-directory", help = "path to output Directory")
         .path().required()
-    private val cores: Int by option("-cores", help = "number of cores available.").int().default(1)
-    private val ramGB: Int by option("-ramGB", help = "amount of RAM available in GB").int().default(16)
+    private val cores: Int by option("--cores", help = "number of cores available.").int().default(1)
+    private val ramGB: Int by option("--ram-gb", help = "amount of RAM available in GB").int().default(16)
 
     override fun run()
         = DefaultCmdRunner().align(
