@@ -26,14 +26,12 @@ fun CmdRunner.getFlagstats(inputPath: Path, outputPath: Path)
 
 fun CmdRunner.align(parameters: AlignmentParameters) {
 
-    // create output directory, unpack index
-    Files.createDirectories(parameters.outputDirectory.resolve("out"))
-    this.run("tar xvf${if (parameters.index.endsWith("gz")) "z" else ""} ${parameters.index} -C ${parameters.outputDirectory}/out")
+    this.run("tar xvf${if (parameters.index.endsWith("gz")) "z" else ""} ${parameters.index} -C ${parameters.outputDirectory}")
 
     // run STAR
     this.run("""
         STAR \
-            --genomeDir ${parameters.outputDirectory}/out \
+            --genomeDir ${parameters.outputDirectory} \
             --readFilesIn ${parameters.r1} ${if (parameters.r2 !== null) parameters.r2 else ""} \
             --readFilesCommand zcat \
             --runThreadN ${parameters.cores} \
