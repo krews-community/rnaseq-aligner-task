@@ -27,13 +27,13 @@ fun CmdRunner.getFlagstats(inputPath: Path, outputPath: Path)
 fun CmdRunner.align(parameters: AlignmentParameters) {
 
     // create output directory, unpack index
-    Files.createDirectories(parameters.outputDirectory.resolve("out"))
-    this.run("tar xvf${if (parameters.index.endsWith("gz")) "z" else ""} ${parameters.index} -C ${parameters.outputDirectory}/out")
+    val indexDir = Files.createDirectories(parameters.outputDirectory.resolve("out"))
+    this.run("tar xvf${if (parameters.index.endsWith("gz")) "z" else ""} ${parameters.index} -C ${indexDir}")
 
     // run STAR
     this.run("""
         STAR \
-            --genomeDir ${parameters.outputDirectory}/out \
+            --genomeDir ${indexDir} \
             --readFilesIn ${parameters.r1} ${if (parameters.r2 !== null) parameters.r2 else ""} \
             --readFilesCommand zcat \
             --runThreadN ${parameters.cores} \
@@ -58,6 +58,7 @@ fun CmdRunner.align(parameters: AlignmentParameters) {
             --limitBAMsortRAM ${parameters.ram}000000000 \
             --outFileNamePrefix ${parameters.outputDirectory}/star
     """)
+    indexDir.toFile().deleteRecursively()
 
     // rename outputs
     Files.move(
@@ -70,7 +71,7 @@ fun CmdRunner.align(parameters: AlignmentParameters) {
     )
 
     // sort for RSEM if necessary
-    if (this.isRSEMSorted(parameters.outputDirectory.resolve("starAligned.toTranscriptome.out.bam")) === true)
+    if (this.isRSEMSorted(parameters.outputDirectory.resolve("starAligned.toTranscriptome.out.bam")) == true)
         Files.move(
             parameters.outputDirectory.resolve("starAligned.toTranscriptome.out.bam"),
             parameters.outputDirectory.resolve("${parameters.outputPrefix}_anno.bam")
