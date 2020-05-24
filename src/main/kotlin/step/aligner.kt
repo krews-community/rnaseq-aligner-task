@@ -15,7 +15,8 @@ data class AlignmentParameters (
     val libraryId: String? = null,
     val cores: Int = 1,
     val ram: Int = 16,
-    val outputPrefix: String = "output"
+    val outputPrefix: String = "output",
+    val indexTarPrefix: String? = null
 )
 
 fun CmdRunner.isRSEMSorted(bam: Path): Boolean?
@@ -27,8 +28,9 @@ fun CmdRunner.getFlagstats(inputPath: Path, outputPath: Path)
 fun CmdRunner.align(parameters: AlignmentParameters) {
 
     // create output directory, unpack index
-    val indexDir = Files.createDirectories(parameters.outputDirectory.resolve("out"))
+    val indexDir = Files.createDirectories(parameters.outputDirectory.resolve("index"))
     this.run("tar xvf${if (parameters.index.endsWith("gz")) "z" else ""} ${parameters.index} -C ${indexDir}")
+    if (parameters.indexTarPrefix !== null) this.run("mv ${indexDir}/${parameters.indexTarPrefix}/* ${indexDir}")
 
     // run STAR
     this.run("""
