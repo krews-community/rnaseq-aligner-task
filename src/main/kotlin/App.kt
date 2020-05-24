@@ -24,6 +24,7 @@ class Cli : CliktCommand() {
         .path().required()
     private val cores: Int by option("--cores", help = "number of cores available.").int().default(1)
     private val ramGB: Int by option("--ram-gb", help = "amount of RAM available in GB").int().default(16)
+    private val indexTarPrefix: String? by option("--index-tar-prefix", help = "the root directory of files in the index tar archive")
 
     override fun run()
         = DefaultCmdRunner().align(
@@ -35,7 +36,8 @@ class Cli : CliktCommand() {
                 outputPrefix = outputPrefix,
                 outputDirectory = outputDirectory,
                 cores = cores,
-                ram = ramGB
+                ram = ramGB,
+		indexTarPrefix = indexTarPrefix
             )
         )
 
