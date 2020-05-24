@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "com.genomealmanac.rnaseq"
-version = "1.0.4"
+version = "1.0.5"
 val artifactID = "star"
 
 repositories {
