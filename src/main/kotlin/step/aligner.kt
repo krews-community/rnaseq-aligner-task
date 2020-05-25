@@ -3,7 +3,9 @@ package step
 import mu.KotlinLogging
 import util.*
 import java.nio.file.*
+import java.io.*
 import util.CmdRunner
+import java.util.zip.*
 
 private val log = KotlinLogging.logger {}
 
@@ -16,7 +18,8 @@ data class AlignmentParameters (
     val cores: Int = 1,
     val ram: Int = 16,
     val outputPrefix: String = "output",
-    val indexTarPrefix: String? = null
+    val indexTarPrefix: String? = null,
+    val minReadLength: Int = 20
 )
 
 fun CmdRunner.isRSEMSorted(bam: Path): Boolean?
@@ -25,6 +28,31 @@ fun CmdRunner.isRSEMSorted(bam: Path): Boolean?
 fun CmdRunner.getFlagstats(inputPath: Path, outputPath: Path)
     = this.run("samtools flagstat $inputPath >  $outputPath")
 
+fun CmdRunner.trimFASTQ(fastq: Path, outputDirectory: Path, minLength: Int): File {
+    val trimmedFASTQ = createTempFile(suffix = ".gz", directory = outputDirectory.toFile())
+    var index: Int = 0
+    var currentLine: String = ""
+    var shouldWrite: Boolean = true
+    val inputStream = if (fastq.fileName.toString().endsWith(".gz")) (
+        GZIPInputStream(fastq.toFile().inputStream())
+    ) else fastq.toFile().inputStream()
+    inputStream.bufferedReader().use { input ->
+        GZIPOutputStream(trimmedFASTQ.outputStream()).bufferedWriter().use { output ->
+            input.forEachLine {
+                currentLine += it + "\n"
+                if (index % 4 == 1)
+                    shouldWrite = it.length >= minLength
+                else if (index % 4 == 3) {
+                    if (shouldWrite) output.write(currentLine)
+                    currentLine = ""
+                }
+                ++index
+            }
+        }
+    }
+    return trimmedFASTQ
+}
+
 fun CmdRunner.align(parameters: AlignmentParameters) {
 
     // create output directory, unpack index
@@ -32,11 +60,15 @@ fun CmdRunner.align(parameters: AlignmentParameters) {
     this.run("tar xvf${if (parameters.index.endsWith("gz")) "z" else ""} ${parameters.index} -C ${indexDir}")
     if (parameters.indexTarPrefix !== null) this.run("mv ${indexDir}/${parameters.indexTarPrefix}/* ${indexDir}")
 
+    // drop reads which are too short
+    val trimmedR1 = this.trimFASTQ(parameters.r1, parameters.outputDirectory, parameters.minReadLength)
+    val trimmedR2: File? = if (parameters.r2 !== null) this.trimFASTQ(parameters.r2, parameters.outputDirectory, parameters.minReadLength) else null
+
     // run STAR
     this.run("""
         STAR \
             --genomeDir ${indexDir} \
-            --readFilesIn ${parameters.r1} ${if (parameters.r2 !== null) parameters.r2 else ""} \
+            --readFilesIn ${trimmedR1} ${if (trimmedR2 !== null) trimmedR2.toPath() else ""} \
             --readFilesCommand zcat \
             --runThreadN ${parameters.cores} \
             --genomeLoad NoSharedMemory \
